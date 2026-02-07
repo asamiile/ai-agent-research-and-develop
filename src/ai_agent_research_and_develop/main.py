@@ -2,6 +2,7 @@ import sys
 import warnings
 import json
 import re
+import logging
 from datetime import datetime
 from typing import Dict, Any, List, Tuple
 
@@ -14,7 +15,15 @@ from ai_agent_research_and_develop.utils import (
     create_research_notebook,
 )
 
+# Suppress warnings and verbose logging
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+# Suppress LiteLLM logging noise
+logging.getLogger("litellm").setLevel(logging.CRITICAL)
+logging.getLogger("litellm.proxy").setLevel(logging.CRITICAL)
+logging.getLogger("litellm.utils").setLevel(logging.CRITICAL)
+logging.getLogger("httpx").setLevel(logging.CRITICAL)
 
 
 def extract_json_from_text(text: str) -> Dict[str, Any]:
@@ -54,11 +63,8 @@ def parse_crew_output(result: Any) -> Dict[str, Any]:
     """
     Parse CrewAI output which can be string, dict, or object
     """
-    print(f"  [DEBUG] Result type: {type(result)}")
-    
     # Handle string results
     if isinstance(result, str):
-        print(f"  [DEBUG] Parsing string result (first 200 chars): {result[:200]}")
         parsed = extract_json_from_text(result)
         if parsed:
             return parsed
@@ -161,10 +167,9 @@ def run():
         raise
     
     # Step 3: Parse crew output more robustly
-    print("\n🔍 Parsing crew results...")
+    print("\n🔍 Processing crew results...")
     
     crew_output = parse_crew_output(result)
-    print(f"  [DEBUG] Parsed output keys: {list(crew_output.keys())}")
     
     # Extract data - be flexible with field names
     pain_points = crew_output.get('pain_points', [])
@@ -174,14 +179,11 @@ def run():
     
     # If no direct fields, try to find them in nested structure
     if not trends_list and 'raw_output' in crew_output:
-        print("  Attempting to extract from raw output...")
         raw = crew_output.get('raw_output', '')
         parsed = extract_json_from_text(raw)
         if parsed:
             trends_list = parsed.get('trends', [])
             pain_points = parsed.get('pain_points', [])
-    
-    print(f"  [DEBUG] Extracted: trends={len(trends_list)}, pain_points={len(pain_points)}, ideas={len(all_ideas)}")
     
     # Ensure pain_points are strings (not dicts)
     if pain_points and isinstance(pain_points[0], dict):
@@ -222,10 +224,9 @@ def run():
             idea_dict['priority_score'] = round(min(10, max(1, priority)), 1)
             
             ideas_objects.append(Idea(**idea_dict))
-            print(f"  ✓ Idea created: {idea_dict.get('title', 'Unknown')}")
         
         except Exception as e:
-            print(f"  ⚠ Skipping idea: {e}")
+            pass  # Silently skip problematic ideas
     
     viable_ideas, filtered_ideas = filter_ideas(ideas_objects)
     
@@ -264,9 +265,8 @@ def run():
                 validation_notes=f"Conservative model: {idea.time_to_mvp_months}mo MVP, TAM ¥{idea.tam_jpy:,.0f}",
             )
             business_models_list.append(model)
-            print(f"  ✓ {idea.title}: ¥{metrics['dev_cost_jpy']:,.0f} dev, ROI {metrics['roi_percent']}%")
         except Exception as e:
-            print(f"  ⚠ Failed to create model: {e}")
+            pass  # Silently skip problematic models
     
     print(f"✓ Created {len(business_models_list)} financial models")
     
