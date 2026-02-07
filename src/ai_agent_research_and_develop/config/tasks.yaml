@@ -1,17 +1,45 @@
-research_task:
+trend_extraction_task:
   description: >
-    Conduct a thorough research about {topic}
-    Make sure you find any interesting and relevant information given
-    the current year is {current_year}.
+    Analyze recent technology trends provided to you.
+    Identify the top 5 most significant trends and top 3 pain points that
+    represent market opportunities. Consider urgency, market size implications,
+    and technical feasibility. Focus on trends that could lead to viable 
+    business opportunities.
+    
+    Provide structured JSON output only - no other text.
   expected_output: >
-    A list with 10 bullet points of the most relevant information about {topic}
-  agent: researcher
+    JSON with trends array and pain_points array
+  agent: trend_analyst
 
-reporting_task:
+
+ideation_task:
   description: >
-    Review the context you got and expand each topic into a full section for a report.
-    Make sure the report is detailed and contains any and all relevant information.
+    Based on the identified trends and pain points, generate 3-5 promising 
+    business ideas. For each idea, evaluate using 7 key metrics:
+    
+    1. Feasibility (1-10)
+    2. Market Need (1-10)
+    3. Scalability (1-10)
+    4. Competitive Intensity (1-10, lower is better)
+    5. Network Effect (1-10)
+    6. Time to MVP (months)
+    7. TAM (JPY)
+    
+    Calculate priority score = (F*0.25 + MN*0.35 + S*0.25 + (10-CI)*0.15)
+    
+    Provide JSON output only - no other text.
   expected_output: >
-    A fully fledged report with the main topics, each with a full section of information.
-    Formatted as markdown without '```'
-  agent: reporting_analyst
+    JSON with ideas array containing all metrics
+  agent: ideation_manager
+
+
+validation_task:
+  description: >
+    For each viable business idea, estimate development cost, annual opex,
+    Year 1 revenue, ARPU, break-even months, and ROI percentage.
+    Provide financial validation for the business models.
+    
+    Provide JSON output only - no other text.
+  expected_output: >
+    JSON with business_models array containing all financial metrics
+  agent: validation_specialist
