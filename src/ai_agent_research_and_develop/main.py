@@ -1,11 +1,7 @@
-#!/usr/bin/env python
-"""
-Main entry point for AI Research & Development Agent
-Fetches technology trends and generates business opportunities with financial analysis
-"""
 import sys
 import warnings
 import json
+import re
 from datetime import datetime
 from typing import Dict, Any, List, Tuple
 
@@ -19,6 +15,83 @@ from ai_agent_research_and_develop.utils import (
 )
 
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
+
+
+def extract_json_from_text(text: str) -> Dict[str, Any]:
+    """
+    Extract JSON from text, handling markdown code blocks and other formats
+    """
+    if not text:
+        return {}
+    
+    # Try to parse as JSON directly
+    try:
+        return json.loads(text)
+    except:
+        pass
+    
+    # Try to extract JSON from markdown code block
+    json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', text)
+    if json_match:
+        json_str = json_match.group(1).strip()
+        try:
+            return json.loads(json_str)
+        except:
+            pass
+    
+    # Try to find JSON object pattern
+    json_match = re.search(r'\{[\s\S]*\}', text)
+    if json_match:
+        try:
+            return json.loads(json_match.group(0))
+        except:
+            pass
+    
+    return {}
+
+
+def parse_crew_output(result: Any) -> Dict[str, Any]:
+    """
+    Parse CrewAI output which can be string, dict, or object
+    """
+    print(f"  [DEBUG] Result type: {type(result)}")
+    
+    # Handle string results
+    if isinstance(result, str):
+        print(f"  [DEBUG] Parsing string result (first 200 chars): {result[:200]}")
+        parsed = extract_json_from_text(result)
+        if parsed:
+            return parsed
+        # If no JSON found in string, return as is
+        return {"raw_output": result}
+    
+    # Handle dict results
+    if isinstance(result, dict):
+        return result
+    
+    # Handle object results
+    if hasattr(result, '__dict__'):
+        result_dict = result.__dict__
+        # Try to convert nested Pydantic models
+        parsed = {}
+        for key, value in result_dict.items():
+            if hasattr(value, 'dict'):
+                parsed[key] = value.dict()
+            elif isinstance(value, list):
+                parsed[key] = [
+                    v.dict() if hasattr(v, 'dict') else v
+                    for v in value
+                ]
+            else:
+                parsed[key] = value
+        return parsed
+    
+    return {}
+
+
+def ensure_required_fields(data_dict: dict, required_fields: List[str]) -> bool:
+    """Check if dict has required fields"""
+    return all(field in data_dict for field in required_fields)
 
 
 def format_trends_for_prompt(trends_data: Dict[str, List[Dict]]) -> str:
@@ -48,108 +121,7 @@ def format_trends_for_prompt(trends_data: Dict[str, List[Dict]]) -> str:
     return prompt
 
 
-def process_ideas_with_filtering(crew_obj: AiAgentResearchAndDevelop, ideas_raw: Any) -> Tuple[List[Idea], List[Idea]]:
-    """
-    Process and filter ideas from crew output
-    """
-    ideas = []
-    
-    # Extract ideas from crew output
-    if hasattr(ideas_raw, 'ideas'):
-        ideas_list = ideas_raw.ideas
-    elif isinstance(ideas_raw, dict) and 'ideas' in ideas_raw:
-        ideas_list = ideas_raw['ideas']
-    else:
-        ideas_list = []
-    
-    # Convert to Idea objects
-    for idea_dict in ideas_list:
-        if isinstance(idea_dict, dict):
-            # Calculate priority score
-            priority = (
-                idea_dict.get('feasibility', 5) * 0.25 +
-                idea_dict.get('market_need', 5) * 0.35 +
-                idea_dict.get('scalability', 5) * 0.25 +
-                (10 - idea_dict.get('competitive_intensity', 5)) * 0.15
-            )
-            idea_dict['priority_score'] = round(min(10, max(1, priority)), 1)
-            
-            try:
-                ideas.append(Idea(**idea_dict))
-            except Exception as e:
-                print(f"Warning: Failed to create Idea object: {e}")
-                continue
-    
-    # Filter ideas
-    viable, filtered = filter_ideas(ideas)
-    
-    print(f"\n✓ Filtering Results:")
-    print(f"  - Total ideas: {len(ideas)}")
-    print(f"  - Viable ideas: {len(viable)}")
-    print(f"  - Filtered out: {len(filtered)}")
-    
-    if filtered:
-        print(f"\n  Filtered ideas:")
-        for idea in filtered:
-            print(f"    - {idea.title}: {idea.rejection_reason}")
-    
-    return viable, filtered
 
-
-def process_business_models(validation_output: Any, viable_ideas: List[Idea]) -> List[BusinessModel]:
-    """
-    Create BusinessModel objects from validation task output
-    """
-    business_models = []
-    
-    # Extract models from validation output
-    if hasattr(validation_output, 'business_models'):
-        models_list = validation_output.business_models
-    elif isinstance(validation_output, dict) and 'business_models' in validation_output:
-        models_list = validation_output['business_models']
-    else:
-        models_list = []
-    
-    # Convert to BusinessModel objects
-    for model_dict in models_list:
-        if isinstance(model_dict, dict):
-            try:
-                # Ensure all required fields are present
-                if 'validation_notes' not in model_dict:
-                    model_dict['validation_notes'] = "Model passed validation."
-                
-                business_models.append(BusinessModel(**model_dict))
-            except Exception as e:
-                print(f"Warning: Failed to create BusinessModel object: {e}")
-                continue
-    
-    # If validation didn't produce enough models, create them from viable ideas
-    if len(business_models) < len(viable_ideas):
-        for idea in viable_ideas:
-            if not any(m.idea_title == idea.title for m in business_models):
-                # Generate metrics
-                metrics = calculate_business_metrics(
-                    idea_title=idea.title,
-                    tam_jpy=idea.tam_jpy,
-                    market_need=idea.market_need,
-                    scalability=idea.scalability,
-                    competitive_intensity=idea.competitive_intensity,
-                    time_to_mvp_months=idea.time_to_mvp_months,
-                )
-                
-                model = BusinessModel(
-                    idea_title=idea.title,
-                    dev_cost_jpy=metrics['dev_cost_jpy'],
-                    annual_opex_jpy=metrics['annual_opex_jpy'],
-                    year1_revenue_estimate_jpy=metrics['year1_revenue_estimate_jpy'],
-                    year1_arpu_jpy=metrics['year1_arpu_jpy'],
-                    break_even_months=metrics['break_even_months'],
-                    roi_percent=metrics['roi_percent'],
-                    validation_notes=f"Based on viable idea '{idea.title}' with {idea.time_to_mvp_months} months to MVP.",
-                )
-                business_models.append(model)
-    
-    return business_models
 
 
 def run():
@@ -188,42 +160,59 @@ def run():
         print(f"\n✗ Error during crew execution: {e}")
         raise
     
-    # Step 3: Process results through filtering
-    print("\n🔍 Processing and filtering ideas...")
+    # Step 3: Parse crew output more robustly
+    print("\n🔍 Parsing crew results...")
     
-    # Extract components from result
-    if hasattr(result, '__dict__'):
-        result_dict = result.__dict__
-    else:
-        result_dict = result if isinstance(result, dict) else {}
+    crew_output = parse_crew_output(result)
+    print(f"  [DEBUG] Parsed output keys: {list(crew_output.keys())}")
     
-    # Get trends from first task
-    trends_output = None
-    ideas_output = None
-    validation_output = None
+    # Extract data - be flexible with field names
+    pain_points = crew_output.get('pain_points', [])
+    all_ideas = crew_output.get('ideas', [])
+    business_models_from_crew = crew_output.get('business_models', [])
+    trends_list = crew_output.get('trends', [])
     
-    # Parse results (CrewAI may return dict or object)
-    if isinstance(result, str):
-        try:
-            result = json.loads(result)
-        except:
-            print("Note: Could not parse crew output as JSON")
+    # If no direct fields, try to find them in nested structure
+    if not trends_list and 'raw_output' in crew_output:
+        print("  Attempting to extract from raw output...")
+        raw = crew_output.get('raw_output', '')
+        parsed = extract_json_from_text(raw)
+        if parsed:
+            trends_list = parsed.get('trends', [])
+            pain_points = parsed.get('pain_points', [])
     
-    # Extract outputs intelligently
-    pain_points = []
-    all_ideas = []
-    trends_list = []
+    print(f"  [DEBUG] Extracted: trends={len(trends_list)}, pain_points={len(pain_points)}, ideas={len(all_ideas)}")
     
-    if isinstance(result, dict):
-        trends_list = result.get('trends', [])
-        pain_points = result.get('pain_points', [])
-        all_ideas = result.get('ideas', [])
-        business_models = result.get('business_models', [])
+    # Ensure pain_points are strings (not dicts)
+    if pain_points and isinstance(pain_points[0], dict):
+        pain_points = [p.get('name', str(p)) if isinstance(p, dict) else str(p) for p in pain_points]
     
-    # Convert to Idea objects for filtering
+    # Convert ideas to Idea objects
     ideas_objects = []
     for idea_dict in all_ideas:
-        if isinstance(idea_dict, dict):
+        try:
+            if not isinstance(idea_dict, dict):
+                continue
+            
+            # Add missing required fields with defaults
+            if 'title' not in idea_dict:
+                idea_dict['title'] = idea_dict.get('name', 'Unnamed Idea')
+            if 'description' not in idea_dict:
+                idea_dict['description'] = idea_dict.get('summary', '')
+            if 'target_market' not in idea_dict:
+                idea_dict['target_market'] = 'General Market'
+            
+            # Set default values for numeric fields
+            for field in ['feasibility', 'market_need', 'scalability', 'competitive_intensity', 'network_effect']:
+                if field not in idea_dict:
+                    idea_dict[field] = 5.0
+            
+            if 'time_to_mvp_months' not in idea_dict:
+                idea_dict['time_to_mvp_months'] = 3
+            if 'tam_jpy' not in idea_dict:
+                idea_dict['tam_jpy'] = 1000000000
+            
+            # Calculate priority score
             priority = (
                 idea_dict.get('feasibility', 5) * 0.25 +
                 idea_dict.get('market_need', 5) * 0.35 +
@@ -232,19 +221,24 @@ def run():
             )
             idea_dict['priority_score'] = round(min(10, max(1, priority)), 1)
             
-            try:
-                ideas_objects.append(Idea(**idea_dict))
-            except Exception as e:
-                print(f"  Warning: Could not create idea object: {e}")
+            ideas_objects.append(Idea(**idea_dict))
+            print(f"  ✓ Idea created: {idea_dict.get('title', 'Unknown')}")
+        
+        except Exception as e:
+            print(f"  ⚠ Skipping idea: {e}")
     
     viable_ideas, filtered_ideas = filter_ideas(ideas_objects)
     
-    print(f"✓ Filtering Results:")
+    print(f"\n✓ Filtering Results:")
     print(f"  - Total ideas: {len(ideas_objects)}")
     print(f"  - Viable ideas: {len(viable_ideas)}")
     print(f"  - Filtered out: {len(filtered_ideas)}")
     
-    # Step 4: Generate financial models for viable ideas
+    if filtered_ideas:
+        for idea in filtered_ideas:
+            print(f"    ✗ {idea.title}: {idea.rejection_reason}")
+    
+    # Step 4: Generate financial models
     print("\n💰 Generating financial analysis...")
     
     business_models_list = []
@@ -267,49 +261,76 @@ def run():
                 year1_arpu_jpy=metrics['year1_arpu_jpy'],
                 break_even_months=metrics['break_even_months'],
                 roi_percent=metrics['roi_percent'],
-                validation_notes=f"Conservative financial model for {idea.time_to_mvp_months}-month MVP timeline.",
+                validation_notes=f"Conservative model: {idea.time_to_mvp_months}mo MVP, TAM ¥{idea.tam_jpy:,.0f}",
             )
             business_models_list.append(model)
+            print(f"  ✓ {idea.title}: ¥{metrics['dev_cost_jpy']:,.0f} dev, ROI {metrics['roi_percent']}%")
         except Exception as e:
-            print(f"  Warning: Failed to create business model: {e}")
+            print(f"  ⚠ Failed to create model: {e}")
     
     print(f"✓ Created {len(business_models_list)} financial models")
     
     # Step 5: Generate notebook
     print("\n📓 Generating analysis notebook...")
     
+    # Convert models to dicts for notebook
+    trends_for_notebook = [
+        t.dict() if hasattr(t, 'dict') else t
+        for t in trends_list
+    ] if isinstance(trends_list, list) else []
+    
+    ideas_for_notebook = [
+        i.dict() if hasattr(i, 'dict') else i
+        for i in ideas_objects
+    ]
+    
+    viable_for_notebook = [
+        i.dict() if hasattr(i, 'dict') else i
+        for i in viable_ideas
+    ]
+    
+    models_for_notebook = [
+        m.dict() if hasattr(m, 'dict') else m
+        for m in business_models_list
+    ]
+    
     notebook_path = create_research_notebook(
-        trends=[t.dict() if hasattr(t, 'dict') else t for t in trends_list],
+        trends=trends_for_notebook,
         pain_points=pain_points,
-        all_ideas=[i.dict() if hasattr(i, 'dict') else i for i in ideas_objects],
-        viable_ideas=[i.dict() if hasattr(i, 'dict') else i for i in viable_ideas],
-        filtered_ideas=[i.dict() if hasattr(i, 'dict') else i for i in filtered_ideas],
-        business_models=[m.dict() if hasattr(m, 'dict') else m for m in business_models_list],
+        all_ideas=ideas_for_notebook,
+        viable_ideas=viable_for_notebook,
+        filtered_ideas=[
+            f.dict() if hasattr(f, 'dict') else f
+            for f in filtered_ideas
+        ],
+        business_models=models_for_notebook,
         output_path="research_analysis.ipynb",
     )
     
-    print(f"✓ Notebook generated: {notebook_path}")
+    print(f"✓ Notebook: {notebook_path}")
     
     # Final summary
     print("\n" + "="*60)
     print("  RESEARCH COMPLETE")
     print("="*60)
-    print(f"Trends identified: {len(trends_list)}")
+    print(f"Trends identified: {len(trends_for_notebook)}")
     print(f"Pain points found: {len(pain_points)}")
-    print(f"Business ideas generated: {len(ideas_objects)}")
-    print(f"Ideas passing viability filter: {len(viable_ideas)}")
-    print(f"Business models validated: {len(business_models_list)}")
+    print(f"Business ideas: {len(ideas_objects)}")
+    print(f"Viable ideas: {len(viable_ideas)}")
+    print(f"Business models: {len(business_models_list)}")
     print(f"\n📄 Output: {notebook_path}")
     print("="*60 + "\n")
     
     return {
-        "trends": trends_list,
+        "trends": trends_for_notebook,
         "pain_points": pain_points,
-        "ideas": all_ideas,
-        "viable_ideas": [i.dict() if hasattr(i, 'dict') else i for i in viable_ideas],
-        "business_models": [m.dict() if hasattr(m, 'dict') else m for m in business_models_list],
+        "ideas": ideas_for_notebook,
+        "viable_ideas": viable_for_notebook,
+        "business_models": models_for_notebook,
         "notebook_path": notebook_path,
     }
+
+
 
 
 def main():

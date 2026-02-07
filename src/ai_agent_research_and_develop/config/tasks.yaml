@@ -1,45 +1,61 @@
 trend_extraction_task:
   description: >
-    Analyze recent technology trends provided to you.
-    Identify the top 5 most significant trends and top 3 pain points that
-    represent market opportunities. Consider urgency, market size implications,
-    and technical feasibility. Focus on trends that could lead to viable 
-    business opportunities.
+    You are analyzing current technology trends. Here is the data provided:
     
-    Provide structured JSON output only - no other text.
+    {trends_data}
+    
+    Based on this data, identify the top 5 most significant trends and top 3 
+    pain points that represent market opportunities. Consider urgency, market 
+    size implications, and technical feasibility. Focus on trends that could 
+    lead to viable business opportunities.
+    
+    OUTPUT ONLY VALID JSON - NO OTHER TEXT, NO MARKDOWN BLOCKS.
+    Start with {{ and end with }}
   expected_output: >
-    JSON with trends array and pain_points array
+    Valid JSON with trends array and pain_points array
   agent: trend_analyst
 
 
 ideation_task:
   description: >
-    Based on the identified trends and pain points, generate 3-5 promising 
-    business ideas. For each idea, evaluate using 7 key metrics:
+    Generate 3-5 promising business ideas based on current technology trends.
     
-    1. Feasibility (1-10)
-    2. Market Need (1-10)
-    3. Scalability (1-10)
-    4. Competitive Intensity (1-10, lower is better)
-    5. Network Effect (1-10)
-    6. Time to MVP (months)
-    7. TAM (JPY)
+    For each idea, evaluate using 7 key metrics:
+    1. Feasibility (1-10): How realistic to build?
+    2. Market Need (1-10): How needed by customers?
+    3. Scalability (1-10): Can reach $1M revenue?
+    4. Competitive Intensity (1-10): Market competition (lower better)
+    5. Network Effect (1-10): Value increases with users?
+    6. Time to MVP (1-36 months): How long to MVP?
+    7. TAM (Japanese Yen): Total addressable market size
     
-    Calculate priority score = (F*0.25 + MN*0.35 + S*0.25 + (10-CI)*0.15)
+    Calculate priority_score = (Feasibility*0.25 + MarketNeed*0.35 + 
+    Scalability*0.25 + (10-CompetitiveIntensity)*0.15)
     
-    Provide JSON output only - no other text.
+    OUTPUT ONLY VALID JSON - NO OTHER TEXT, NO MARKDOWN BLOCKS.
+    Start with {{ and end with }}
   expected_output: >
-    JSON with ideas array containing all metrics
+    Valid JSON with ideas array containing all metrics
   agent: ideation_manager
 
 
 validation_task:
   description: >
-    For each viable business idea, estimate development cost, annual opex,
-    Year 1 revenue, ARPU, break-even months, and ROI percentage.
-    Provide financial validation for the business models.
+    For viable business ideas, estimate:
+    - Development cost in JPY
+    - Annual operational expenses in JPY
+    - Year 1 revenue conservative estimate
+    - Average Revenue Per User (ARPU) in JPY
+    - Break-even timeline in months
+    - Year 1 ROI percentage
     
-    Provide JSON output only - no other text.
+    Financial model assumptions:
+    - Dev rate: 5000 yen/hour
+    - MVP effort based on time_to_mvp_months
+    - Conservative market penetration vs TAM
+    
+    OUTPUT ONLY VALID JSON - NO OTHER TEXT, NO MARKDOWN BLOCKS.
+    Start with {{ and end with }}
   expected_output: >
-    JSON with business_models array containing all financial metrics
+    Valid JSON with business_models array containing financial metrics
   agent: validation_specialist
