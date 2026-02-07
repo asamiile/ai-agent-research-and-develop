@@ -1,0 +1,25 @@
+[project]
+name = "ai_agent_research_and_develop"
+version = "0.1.0"
+description = "ai-agent-research-and-develop using crewAI"
+authors = [{ name = "Your Name", email = "you@example.com" }]
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "crewai[tools]==1.9.3",
+    "litellm>=1.0.0"
+]
+
+[project.scripts]
+ai_agent_research_and_develop = "ai_agent_research_and_develop.main:run"
+run_crew = "ai_agent_research_and_develop.main:run"
+train = "ai_agent_research_and_develop.main:train"
+replay = "ai_agent_research_and_develop.main:replay"
+test = "ai_agent_research_and_develop.main:test"
+run_with_trigger = "ai_agent_research_and_develop.main:run_with_trigger"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.crewai]
+type = "crew"
