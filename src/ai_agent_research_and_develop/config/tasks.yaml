@@ -1,17 +1,61 @@
-research_task:
+trend_extraction_task:
   description: >
-    Conduct a thorough research about {topic}
-    Make sure you find any interesting and relevant information given
-    the current year is {current_year}.
+    You are analyzing current technology trends. Here is the data provided:
+    
+    {trends_data}
+    
+    Based on this data, identify the top 5 most significant trends and top 3 
+    pain points that represent market opportunities. Consider urgency, market 
+    size implications, and technical feasibility. Focus on trends that could 
+    lead to viable business opportunities.
+    
+    OUTPUT ONLY VALID JSON - NO OTHER TEXT, NO MARKDOWN BLOCKS.
+    Start with {{ and end with }}
   expected_output: >
-    A list with 10 bullet points of the most relevant information about {topic}
-  agent: researcher
+    Valid JSON with trends array and pain_points array
+  agent: trend_analyst
 
-reporting_task:
+
+ideation_task:
   description: >
-    Review the context you got and expand each topic into a full section for a report.
-    Make sure the report is detailed and contains any and all relevant information.
+    Generate 3-5 promising business ideas based on current technology trends.
+    
+    For each idea, evaluate using 7 key metrics:
+    1. Feasibility (1-10): How realistic to build?
+    2. Market Need (1-10): How needed by customers?
+    3. Scalability (1-10): Can reach $1M revenue?
+    4. Competitive Intensity (1-10): Market competition (lower better)
+    5. Network Effect (1-10): Value increases with users?
+    6. Time to MVP (1-36 months): How long to MVP?
+    7. TAM (Japanese Yen): Total addressable market size
+    
+    Calculate priority_score = (Feasibility*0.25 + MarketNeed*0.35 + 
+    Scalability*0.25 + (10-CompetitiveIntensity)*0.15)
+    
+    OUTPUT ONLY VALID JSON - NO OTHER TEXT, NO MARKDOWN BLOCKS.
+    Start with {{ and end with }}
   expected_output: >
-    A fully fledged report with the main topics, each with a full section of information.
-    Formatted as markdown without '```'
-  agent: reporting_analyst
+    Valid JSON with ideas array containing all metrics
+  agent: ideation_manager
+
+
+validation_task:
+  description: >
+    For viable business ideas, estimate:
+    - Development cost in JPY
+    - Annual operational expenses in JPY
+    - Year 1 revenue conservative estimate
+    - Average Revenue Per User (ARPU) in JPY
+    - Break-even timeline in months
+    - Year 1 ROI percentage
+    
+    Financial model assumptions:
+    - Dev rate: 5000 yen/hour
+    - MVP effort based on time_to_mvp_months
+    - Conservative market penetration vs TAM
+    
+    OUTPUT ONLY VALID JSON - NO OTHER TEXT, NO MARKDOWN BLOCKS.
+    Start with {{ and end with }}
+  expected_output: >
+    Valid JSON with business_models array containing financial metrics
+  agent: validation_specialist

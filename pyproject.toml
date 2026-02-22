@@ -5,8 +5,13 @@ description = "ai-agent-research-and-develop using crewAI"
 authors = [{ name = "Your Name", email = "you@example.com" }]
 requires-python = ">=3.10,<3.14"
 dependencies = [
-    "crewai[tools]==1.9.3",
-    "litellm>=1.0.0"
+    "crewai[tools]==1.8.1",
+    "litellm>=1.0.0",
+    "apscheduler>=3.10.0",
+    "feedparser>=6.0.0",
+    "nbformat>=5.0.0",
+    "requests>=2.31.0",
+    "pydantic>=2.0.0"
 ]
 
 [project.scripts]
